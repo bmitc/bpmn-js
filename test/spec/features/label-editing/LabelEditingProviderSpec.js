@@ -10,7 +10,8 @@ var is = require('../../../../lib/util/ModelUtil').is;
 var labelEditingModule = require('../../../../lib/features/label-editing'),
     coreModule = require('../../../../lib/core'),
     draggingModule = require('diagram-js/lib/features/dragging'),
-    modelingModule = require('../../../../lib/features/modeling');
+    modelingModule = require('../../../../lib/features/modeling'),
+    zoomScrollModule = require('diagram-js/lib/navigation/zoomscroll');
 
 
 var LabelUtil = require('../../../../lib/features/label-editing/LabelUtil');
@@ -567,7 +568,7 @@ describe('features - label-editing', function() {
     }));
 
 
-    describe('textbox should have minimum size', function() {
+    describe('of textbox should have minimum size', function() {
 
       function testTextboxSizing(elementId, zoom, width, height) {
         return inject(function(canvas, elementRegistry, directEditing) {
@@ -602,5 +603,117 @@ describe('features - label-editing', function() {
     });
 
   });
+
+describe('position', function() {
+
+  var testModules = [ labelEditingModule, coreModule, modelingModule, zoomScrollModule ];
+
+  beforeEach(bootstrapViewer(diagramXML, {
+    modules: testModules,
+    canvas: { deferUpdate: false }
+  }));
+
+  describe('of textbox when zoomed in/out', function(){
+
+    //rounding to one decimal point
+    function round(float){
+      return Math.round(float*10) / 10;
+    };
+
+    // pos can have the values: 'centerd', 'bounded', 'pool/lane'
+    function textBoxPosition(elementId, zoom, pos){
+      return inject(function(canvas, elementRegistry, directEditing, zoomScroll){
+
+        // given
+        var diagramElement = elementRegistry.get(elementId);
+        diagramElement = diagramElement.label || diagramElement;
+        canvas.zoom(zoom);
+
+        var elementPos = canvas.getAbsoluteBBox(diagramElement);
+        if(pos == 'centered'){
+          var elementMid = elementPos.x + (diagramElement.width*zoom) / 2;
+        }
+        else if(pos == 'pool/lane'){
+          var poolHeadMidHoriz = elementPos.x + (30*zoom) / 2;
+          var poolMidVert = elementPos.y + (diagramElement.height*zoom) / 2
+         }
+
+        // when
+        directEditing.activate(diagramElement);
+        var textarea = directEditing._textbox.textarea;
+
+        // then
+        var textareaPos = {
+          x: parseFloat(textarea.style.left)*parseFloat(textarea.style.zoom),
+          y: parseFloat(textarea.style.top)*parseFloat(textarea.style.zoom)
+        };
+
+        if(pos == 'centered'){
+          var textBoxMidHoriz = textareaPos.x +
+          (parseFloat(textarea.style.width)*parseFloat(textarea.style.zoom)) / 2;
+
+          expect(round(textBoxMidHoriz)).to.eql(round(elementMid));
+          expect(round(textareaPos.y)).to.eql(round(elementPos.y));
+        }
+        else if(pos == 'pool/lane'){
+          var textBoxMidHoriz = textareaPos.x +
+          (parseFloat(textarea.style.width)*parseFloat(textarea.style.zoom)) / 2;
+          var textBoxMidVert = textareaPos.y +
+          (parseFloat(textarea.style.height)*parseFloat(textarea.style.zoom)) / 2;
+
+          expect(round(textBoxMidHoriz)).to.eql(round(poolHeadMidHoriz));
+          expect(round(textBoxMidVert)).to.eql(round(poolMidVert));
+        }
+        else { // 'bounded'
+          expect(round(textareaPos.x)).to.eql(round(elementPos.x));
+          expect(round(textareaPos.y)).to.eql(round(elementPos.y));
+        }
+      });
+    };
+
+    describe('should be centered for', function(){
+
+      var pos = 'centered';
+
+      it('external label, zoom = 1', textBoxPosition('boundary-event', 1, pos));
+      it('external label zoom = 3', textBoxPosition('boundary-event', 3, pos));
+      it('external label zoom = 0.25', textBoxPosition('boundary-event', 0.25, pos));
+
+      it('user-task, zoom = 1', textBoxPosition('user-task', 1, pos));
+      it('user-task zoom = 3', textBoxPosition('user-task', 3, pos));
+      it('user-task zoom = 0.25', textBoxPosition('user-task', 0.25, pos));
+
+      it('collapsed-pool and expanded sub processes zoom = 0.25',
+      textBoxPosition('collapsed-pool', 0.25, pos));
+      it('collapsed-pool and expanded sub processes zoom = 1',
+      textBoxPosition('collapsed-pool', 1, pos));
+      it('collapsed-pool and expanded sub processes zoom = 3',
+      textBoxPosition('collapsed-pool', 3, pos));
+
+    });
+
+    describe('should be bounded to top left corner for', function(){
+
+      var pos = 'bounded';
+
+      it('text-annotation, zoom = 1', textBoxPosition('text-annotation', 1, pos));
+      it('text-annotation, zoom = 3', textBoxPosition('text-annotation', 3, pos));
+      it('text-annotation, zoom = 0.25', textBoxPosition('text-annotation', 0.25, pos));
+
+    });
+
+    describe('should be centered in the head of the expanded pool/lane', function(){
+
+      var pos ='pool/lane';
+
+      it('pool, zoom = 1', textBoxPosition('expanded-pool', 1, pos));
+      it('pool, zoom = 3', textBoxPosition('expanded-pool', 3, pos));
+      it('pool, zoom = 0.25', textBoxPosition('expanded-pool', 0.25, pos));
+
+    });
+
+  });
+
+});
 
 });
