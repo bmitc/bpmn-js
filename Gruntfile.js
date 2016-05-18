@@ -19,7 +19,7 @@ module.exports = function(grunt) {
     config: {
       sources: 'lib',
       tests: 'test',
-      dist: '../bower-bpmn-js/dist'
+      dist: '../soupe-bpmn-js-bower/dist'
     },
 
     jshint: {
